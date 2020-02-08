@@ -126,6 +126,7 @@ func mainRet() int {
 			return nil, err
 		}
 		log.Debugf("config path is %s", repoPath)
+		_ = req.Extra
 
 		plugins, err := loadPlugins(repoPath)
 		if err != nil {

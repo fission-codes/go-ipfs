@@ -87,7 +87,7 @@ require (
 	github.com/mr-tron/base58 v1.1.3
 	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/multiformats/go-multiaddr-dns v0.2.0
-	github.com/multiformats/go-multiaddr-net v0.1.1
+	github.com/multiformats/go-multiaddr-net v0.1.2
 	github.com/multiformats/go-multibase v0.0.1
 	github.com/multiformats/go-multihash v0.0.13
 	github.com/multiformats/go-multistream v0.1.1 // indirect
@@ -103,5 +103,9 @@ require (
 	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 )
+
+replace github.com/ipfs/go-ipfs-cmds => ../go-ipfs-cmds
+
+replace github.com/ipfs/go-ipfs-cmds/ipfs => ../go-ipfs-cmds
 
 go 1.12
