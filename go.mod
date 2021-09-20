@@ -23,6 +23,7 @@ require (
 	github.com/ipfs/go-ds-flatfs v0.4.5
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-ds-measure v0.1.0
+	github.com/ipfs/go-ds-s3 v0.7.0
 	github.com/ipfs/go-filestore v0.0.3
 	github.com/ipfs/go-fs-lock v0.0.6
 	github.com/ipfs/go-graphsync v0.8.0
@@ -102,9 +103,10 @@ require (
 	go.uber.org/fx v1.13.1
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf
-	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
 )
 
 go 1.15
+
+replace github.com/ipfs/go-ds-s3 v0.7.0 => github.com/fission-suite/go-ds-s3 v0.7.1-0.20210914154402-b6eacd9fc11d
