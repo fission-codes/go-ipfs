@@ -23,6 +23,7 @@ require (
 	github.com/ipfs/go-ds-flatfs v0.4.5
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-ds-measure v0.1.0
+	github.com/ipfs/go-ds-s3 v0.7.0
 	github.com/ipfs/go-fetcher v1.5.0
 	github.com/ipfs/go-filestore v0.0.3
 	github.com/ipfs/go-fs-lock v0.0.7
