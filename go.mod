@@ -5,7 +5,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/ceramicnetwork/go-dag-jose v0.1.0
-	github.com/cheggaaa/pb v1.0.29
+	github.com/cheggaaa/pb v2.0.7+incompatible
 	github.com/coreos/go-systemd/v22 v22.3.2
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elgris/jsondiff v0.0.0-20160530203242-765b5c24c302
@@ -89,6 +89,7 @@ require (
 	github.com/libp2p/go-socket-activation v0.1.0
 	github.com/libp2p/go-tcp-transport v0.4.0
 	github.com/libp2p/go-ws-transport v0.5.0
+	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.4.1
@@ -109,6 +110,12 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211025112917-711f33c9992c
+	gopkg.in/VividCortex/ewma.v1 v1.1.1 // indirect
+	gopkg.in/cheggaaa/pb.v2 v2.0.7 // indirect
+	gopkg.in/fatih/color.v1 v1.7.0 // indirect
+	gopkg.in/mattn/go-colorable.v0 v0.1.0 // indirect
+	gopkg.in/mattn/go-isatty.v0 v0.0.4 // indirect
+	gopkg.in/mattn/go-runewidth.v0 v0.0.4 // indirect
 )
 
 go 1.16
