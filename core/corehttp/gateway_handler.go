@@ -1,6 +1,7 @@
 package corehttp
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"html/template"
@@ -270,6 +271,18 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	redirects, err := i.searchUpTreeForRedirects(r, parsedPath)
+	if err == nil {
+		redirected, err := i.redirect(w, r, redirects)
+		if err != nil {
+			// FIXME what to do here with errors ...
+		}
+
+		if redirected {
+			return
+		}
+	}
+
 	// Resolve path to the final DAG node for the ETag
 	resolvedPath, err := i.api.ResolvePath(r.Context(), parsedPath)
 	switch err {
@@ -495,6 +508,81 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		internalWebError(w, err)
 		return
 	}
+}
+
+type redirLine struct {
+	matcher string
+	to      string
+	code    int
+}
+
+type redirs []redirLine
+
+func newRedirs(f io.Reader) *redirs {
+	ret := redirs{}
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		groups := strings.Split(scanner.Text(), " ")
+		if len(groups) >= 2 {
+			matcher := groups[0]
+			to := groups[1]
+			// default to 302 (temporary redirect)
+			code := 302
+			if len(groups) >= 3 {
+				c, err := strconv.Atoi(groups[2])
+				if err == nil {
+					code = c
+				}
+			}
+			ret = append(ret, redirLine{matcher, to, code})
+		}
+	}
+
+	return &ret
+}
+
+// returns "" if no redir
+func (r redirs) search(path string) (string, int) {
+	for _, rdir := range r {
+		if path == rdir.matcher {
+			return rdir.to, rdir.code
+		}
+	}
+
+	return "", 0
+}
+
+func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path ipath.Resolved) (bool, error) {
+	node, err := i.api.Unixfs().Get(r.Context(), path)
+	if err != nil {
+		return false, fmt.Errorf("could not get redirects file: %v", err)
+	}
+
+	defer node.Close()
+
+	f, ok := node.(files.File)
+
+	if !ok {
+		return false, fmt.Errorf("redirect, could not convert node to file")
+	}
+
+	redirs := newRedirs(f)
+
+	// extract "file" part of URL, typically the part after /ipfs/CID/...
+	g := strings.Split(r.URL.Path, "/")
+
+	if len(g) > 3 {
+		filePartPath := strings.Join(g[3:], "/")
+
+		to, code := redirs.search(filePartPath)
+		if code > 0 {
+			http.Redirect(w, r, to, code)
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (i *gatewayHandler) serveFile(w http.ResponseWriter, req *http.Request, name string, modtime time.Time, file files.File) {
@@ -788,6 +876,25 @@ func getFilename(s string) string {
 		return ""
 	}
 	return gopath.Base(s)
+}
+
+func (i *gatewayHandler) searchUpTreeForRedirects(r *http.Request, parsedPath ipath.Path) (ipath.Resolved, error) {
+	pathComponents := strings.Split(parsedPath.String(), "/")
+
+	for idx := len(pathComponents); idx >= 3; idx-- {
+		rdir := gopath.Join(append(pathComponents[0:idx], "_redirects")...)
+		rdirPath := ipath.New("/" + rdir)
+		if rdirPath.IsValid() != nil {
+			break
+		}
+		resolvedPath, err := i.api.ResolvePath(r.Context(), rdirPath)
+		if err != nil {
+			continue
+		}
+		return resolvedPath, nil
+	}
+
+	return nil, fmt.Errorf("no redirects in any parent folder")
 }
 
 func (i *gatewayHandler) searchUpTreeFor404(r *http.Request, parsedPath ipath.Path) (ipath.Resolved, string, error) {
