@@ -259,6 +259,22 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	redirects, err := i.searchUpTreeForRedirects(r, urlPath)
+	if err == nil {
+		redirected, newPath, err := i.redirect(w, r, redirects)
+		if err != nil {
+			// FIXME what to do here with errors ...
+		}
+
+		if redirected {
+			return
+		}
+
+		if newPath != "" {
+			urlPath = newPath
+		}
+	}
+
 	parsedPath := ipath.New(urlPath)
 	if pathErr := parsedPath.IsValid(); pathErr != nil {
 		if prefix == "" && fixupSuperfluousNamespace(w, urlPath, r.URL.RawQuery) {
@@ -269,18 +285,6 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		// unable to fix path, returning error
 		webError(w, "invalid ipfs path", pathErr, http.StatusBadRequest)
 		return
-	}
-
-	redirects, err := i.searchUpTreeForRedirects(r, parsedPath)
-	if err == nil {
-		redirected, err := i.redirect(w, r, redirects)
-		if err != nil {
-			// FIXME what to do here with errors ...
-		}
-
-		if redirected {
-			return
-		}
 	}
 
 	// Resolve path to the final DAG node for the ETag
@@ -553,10 +557,11 @@ func (r redirs) search(path string) (string, int) {
 	return "", 0
 }
 
-func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path ipath.Resolved) (bool, error) {
+// redirect returns redirected, newPath (if rewrite), error
+func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path ipath.Resolved) (bool, string, error) {
 	node, err := i.api.Unixfs().Get(r.Context(), path)
 	if err != nil {
-		return false, fmt.Errorf("could not get redirects file: %v", err)
+		return false, "", fmt.Errorf("could not get redirects file: %v", err)
 	}
 
 	defer node.Close()
@@ -564,7 +569,7 @@ func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path i
 	f, ok := node.(files.File)
 
 	if !ok {
-		return false, fmt.Errorf("redirect, could not convert node to file")
+		return false, "", fmt.Errorf("redirect, could not convert node to file")
 	}
 
 	redirs := newRedirs(f)
@@ -577,12 +582,19 @@ func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path i
 
 		to, code := redirs.search(filePartPath)
 		if code > 0 {
+			if code == 200 {
+				// rewrite
+				newPath := strings.Join(g[0:3], "/") + "/" + to
+				return false, newPath, nil
+			}
+
+			// redirect
 			http.Redirect(w, r, to, code)
-			return true, nil
+			return true, "", nil
 		}
 	}
 
-	return false, nil
+	return false, "", nil
 }
 
 func (i *gatewayHandler) serveFile(w http.ResponseWriter, req *http.Request, name string, modtime time.Time, file files.File) {
@@ -878,8 +890,8 @@ func getFilename(s string) string {
 	return gopath.Base(s)
 }
 
-func (i *gatewayHandler) searchUpTreeForRedirects(r *http.Request, parsedPath ipath.Path) (ipath.Resolved, error) {
-	pathComponents := strings.Split(parsedPath.String(), "/")
+func (i *gatewayHandler) searchUpTreeForRedirects(r *http.Request, path string) (ipath.Resolved, error) {
+	pathComponents := strings.Split(path, "/")
 
 	for idx := len(pathComponents); idx >= 3; idx-- {
 		rdir := gopath.Join(append(pathComponents[0:idx], "_redirects")...)
