@@ -1,7 +1,6 @@
 package corehttp
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"html/template"
@@ -514,49 +513,6 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-type redirLine struct {
-	matcher string
-	to      string
-	code    int
-}
-
-type redirs []redirLine
-
-func newRedirs(f io.Reader) *redirs {
-	ret := redirs{}
-	scanner := bufio.NewScanner(f)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		groups := strings.Split(scanner.Text(), " ")
-		if len(groups) >= 2 {
-			matcher := groups[0]
-			to := groups[1]
-			// default to 302 (temporary redirect)
-			code := 302
-			if len(groups) >= 3 {
-				c, err := strconv.Atoi(groups[2])
-				if err == nil {
-					code = c
-				}
-			}
-			ret = append(ret, redirLine{matcher, to, code})
-		}
-	}
-
-	return &ret
-}
-
-// returns "" if no redir
-func (r redirs) search(path string) (string, int) {
-	for _, rdir := range r {
-		if path == rdir.matcher {
-			return rdir.to, rdir.code
-		}
-	}
-
-	return "", 0
-}
-
 // redirect returns redirected, newPath (if rewrite), error
 func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path ipath.Resolved) (bool, string, error) {
 	node, err := i.api.Unixfs().Get(r.Context(), path)
@@ -578,7 +534,7 @@ func (i *gatewayHandler) redirect(w http.ResponseWriter, r *http.Request, path i
 	g := strings.Split(r.URL.Path, "/")
 
 	if len(g) > 3 {
-		filePartPath := strings.Join(g[3:], "/")
+		filePartPath := "/" + strings.Join(g[3:], "/")
 
 		to, code := redirs.search(filePartPath)
 		if code > 0 {
