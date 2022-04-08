@@ -342,24 +342,6 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Resolve path to the final DAG node for the ETag
-	resolvedPath, err := i.api.ResolvePath(r.Context(), contentPath)
-	switch err {
-	case nil:
-	case coreiface.ErrOffline:
-		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusServiceUnavailable)
-		return
-	default:
-		// if Accept is text/html, see if ipfs-404.html is present
-		if i.servePretty404IfPresent(w, r, contentPath) {
-			logger.Debugw("serve pretty 404 if present")
-			return
-		}
-
-		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusNotFound)
-		return
-	}
-
 	// Detect when explicit Accept header or ?format parameter are present
 	responseFormat, formatParams, err := customResponseFormat(r)
 	if err != nil {
@@ -367,6 +349,17 @@ func (i *gatewayHandler) getOrHeadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	trace.SpanFromContext(r.Context()).SetAttributes(attribute.String("ResponseFormat", responseFormat))
+
+	var ok bool
+	var resolvedPath ipath.Resolved
+	if responseFormat == "" {
+		resolvedPath, contentPath, ok = i.handleUnixfsPathResolution(w, r, responseFormat, contentPath, logger)
+	} else {
+		resolvedPath, contentPath, ok = i.handleNonUnixfsPathResolution(w, r, responseFormat, contentPath, logger)
+	}
+	if !ok {
+		return
+	}
 	trace.SpanFromContext(r.Context()).SetAttributes(attribute.String("ResolvedPath", resolvedPath.String()))
 
 	// Finish early if client already has matching Etag
@@ -984,4 +977,125 @@ func (i *gatewayHandler) handledSetHeaders(w http.ResponseWriter, r *http.Reques
 	}
 
 	return false
+}
+
+func (i *gatewayHandler) handleNonUnixfsPathResolution(w http.ResponseWriter, r *http.Request, responseFormat string, contentPath ipath.Path, logger *zap.SugaredLogger) (ipath.Resolved, ipath.Path, bool) {
+	// Resolve the path for the provided contentPath
+	resolvedPath, err := i.api.ResolvePath(r.Context(), contentPath)
+
+	switch err {
+	case nil:
+		return resolvedPath, contentPath, true
+	case coreiface.ErrOffline:
+		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusServiceUnavailable)
+		return nil, nil, false
+	default:
+		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusNotFound)
+		return nil, nil, false
+	}
+}
+
+// Resolve the provided path.
+// If we can't resolve the path, then for Unixfs requests, look for a _redirects file in the root CID path.
+// If _redirects file exists, attempt to match redirect rules for the path.
+// If a rule matches, either redirect or rewrite as determined by the rule.
+// For rewrites, we need to attempt to resolve the rewrite path as well, and if it doesn't resolve, this time we just return the error.
+func (i *gatewayHandler) handleUnixfsPathResolution(w http.ResponseWriter, r *http.Request, responseFormat string, contentPath ipath.Path, logger *zap.SugaredLogger) (ipath.Resolved, ipath.Path, bool) {
+	// Resolve the path for the provided contentPath
+	resolvedPath, err := i.api.ResolvePath(r.Context(), contentPath)
+
+	switch err {
+	case nil:
+		// TODO: I believe for the force option, we might need to short circuit this, and thus we would need to read the redirects file first
+		return resolvedPath, contentPath, true
+	case coreiface.ErrOffline:
+		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusServiceUnavailable)
+		return nil, nil, false
+	default:
+		// If we can't resolve the path
+		// Only look for _redirects file if we have Unixfs and Origin isolation
+		if hasOriginIsolation(r) {
+			// Check for _redirects file and redirect as needed
+			redirectsFile, err := i.getRedirectsFile(r)
+			if err != nil {
+				switch err.(type) {
+				case resolver.ErrNoLink:
+					// _redirects files doesn't exist, so don't error
+				default:
+					// TODO(JJ): During tests we get multibase.ErrUnsupportedEncoding
+					// This comes from multibase and I assume is due to a fake or otherwise bad CID being in the test.
+					internalWebError(w, err)
+					return nil, nil, false
+				}
+			} else {
+				// _redirects file exists, so parse it and redirect
+				redirected, newPath, err := i.handleRedirectsFile(w, r, redirectsFile, logger)
+				if err != nil {
+					err = fmt.Errorf("trouble processing _redirects file at %q: %w", redirectsFile.String(), err)
+					internalWebError(w, err)
+					return nil, nil, false
+				}
+
+				if redirected {
+					return nil, nil, false
+				}
+
+				// 200 is treated as a rewrite, so update the path and continue
+				if newPath != "" {
+					// Reassign contentPath and resolvedPath since the URL was rewritten
+					contentPath = ipath.New(newPath)
+					resolvedPath, err = i.api.ResolvePath(r.Context(), contentPath)
+					if err != nil {
+						internalWebError(w, err)
+						return nil, nil, false
+					}
+					logger.Debugf("_redirects: 200 rewrite. newPath=%v", newPath)
+
+					return resolvedPath, contentPath, true
+				}
+			}
+		}
+
+		// if Accept is text/html, see if ipfs-404.html is present
+		// This logic isn't documented and will likely be removed at some point.
+		// Any 404 logic in _redirects above will have already run by this time, so it's really an extra fall back
+		if i.servePretty404IfPresent(w, r, contentPath) {
+			logger.Debugw("serve pretty 404 if present")
+			return nil, nil, false
+		}
+
+		// Fallback
+		webError(w, "ipfs resolve -r "+debugStr(contentPath.String()), err, http.StatusNotFound)
+		return nil, nil, false
+	}
+}
+
+func (i *gatewayHandler) serve404(w http.ResponseWriter, r *http.Request, content404Path ipath.Path) error {
+	resolved404Path, err := i.api.ResolvePath(r.Context(), content404Path)
+	if err != nil {
+		return err
+	}
+
+	node, err := i.api.Unixfs().Get(r.Context(), resolved404Path)
+	if err != nil {
+		return err
+	}
+	defer node.Close()
+
+	f, ok := node.(files.File)
+	if !ok {
+		return fmt.Errorf("could not convert node for 404 page to file")
+	}
+
+	size, err := f.Size()
+	if err != nil {
+		return fmt.Errorf("could not get size of 404 page")
+	}
+
+	log.Debugw("using _redirects 404 file", "path", content404Path)
+	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	w.WriteHeader(http.StatusNotFound)
+	_, err = io.CopyN(w, f, size)
+	return err
 }
