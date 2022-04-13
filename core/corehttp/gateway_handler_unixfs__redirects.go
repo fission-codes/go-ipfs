@@ -51,10 +51,17 @@ func (i *gatewayHandler) handleUnixfsPathResolution(w http.ResponseWriter, r *ht
 			// /ipns/domain
 			logger.Debugf("r.URL.Path=%v", r.URL.Path)
 			redirectsFile, err := i.getRedirectsFile(r)
+
 			if err != nil {
 				switch err.(type) {
 				case resolver.ErrNoLink:
 					// _redirects files doesn't exist, so don't error
+				// case coreiface.ErrResolveFailed.(type):
+				// How to get type?
+				// 	// Couldn't resolve ipns name when trying to compute root
+				// Tests indicate we should return 404, not 500
+				// 	internalWebError(w, err)
+				// 	return nil, nil, false
 				default:
 					// Let users know about issues with _redirects file handling
 					internalWebError(w, err)
@@ -283,6 +290,8 @@ func (i *gatewayHandler) getRedirectsFile(r *http.Request) (ipath.Resolved, erro
 //     CID is the root CID
 //   /ipns/domain/*
 //     Need to resolve domain ipns path to get CID
+//   /ipns/domain/ipfs/CID
+//     Is this legit?  If so, we should use CID?
 func getRootPath(path string) (ipath.Path, error) {
 	if isIpfsPath(path) {
 		parts := strings.Split(path, "/")
