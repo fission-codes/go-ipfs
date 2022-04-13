@@ -24,8 +24,14 @@ import (
 // If a rule matches, either redirect or rewrite as determined by the rule.
 // For rewrites, we need to attempt to resolve the rewrite path as well, and if it doesn't resolve, this time we just return the error.
 func (i *gatewayHandler) handleUnixfsPathResolution(w http.ResponseWriter, r *http.Request, contentPath ipath.Path, logger *zap.SugaredLogger) (ipath.Resolved, ipath.Path, bool) {
-	// Resolve the path for the provided contentPath
+	// Attempt to resolve the path for the provided contentPath
 	resolvedPath, err := i.api.ResolvePath(r.Context(), contentPath)
+
+	// If path resolved and we have origin isolation, we need to attempt to read redirects file and find a force redirect for the corresponding path.  If found, redirect, but only if force.
+	// If path resolved and we do not have origin isolation, no need to attempt to read redirects file.  Just return resolvedPath, contentPath, true.
+	// If path didn't resolve, if ErrOffline, write error and return nil, nil, false.
+	// If path didn't resolve for any other error, if we have origin isolation, attempt to read redirects file and apply any redirect rules, regardless of force.
+	// Fallback to pretty 404 page, and then normal 404
 
 	switch err {
 	case nil:
@@ -43,6 +49,7 @@ func (i *gatewayHandler) handleUnixfsPathResolution(w http.ResponseWriter, r *ht
 			// /ipfs/CID/_redirects
 			// /ipns/domain/ipfs/CID
 			// /ipns/domain
+			logger.Debugf("r.URL.Path=%v", r.URL.Path)
 			redirectsFile, err := i.getRedirectsFile(r)
 			if err != nil {
 				switch err.(type) {
@@ -263,7 +270,7 @@ func (i *gatewayHandler) getRedirectsFile(r *http.Request) (ipath.Resolved, erro
 		return nil, err
 	}
 
-	path := ipath.New(gopath.Join(rootPath, "_redirects"))
+	path := ipath.Join(rootPath, "_redirects")
 	resolvedPath, err := i.api.ResolvePath(r.Context(), path)
 	if err != nil {
 		return nil, err
@@ -271,23 +278,23 @@ func (i *gatewayHandler) getRedirectsFile(r *http.Request) (ipath.Resolved, erro
 	return resolvedPath, nil
 }
 
-// Returns the root CID path for the given path
-func getRootPath(path string) (string, error) {
-	// Handle both ipfs and ipns paths
-	//   /ipfs/CID
-	//   /ipns/domain/ipfs/CID
-	if strings.HasPrefix(path, ipfsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 2 {
+// Returns the root CID Path for the given path
+//   /ipfs/CID/*
+//     CID is the root CID
+//   /ipns/domain/*
+//     Need to resolve domain ipns path to get CID
+func getRootPath(path string) (ipath.Path, error) {
+	if isIpfsPath(path) {
 		parts := strings.Split(path, "/")
-		return gopath.Join(ipfsPathPrefix, parts[2]), nil
+		return ipath.New(gopath.Join(ipfsPathPrefix, parts[2])), nil
 	}
 
-	if isIpnsPathWithIpfsPath(path) {
-		parts := strings.Split(gopath.Clean(path), "/")
-		// TODO(JJ): The path came in as /ipns/domain/ipfs/CID, but I'm returning /ipfs/CID.  Confirm this doesn't cause any issues.
-		return gopath.Join(ipfsPathPrefix, parts[4]), nil
+	if isIpnsPath(path) {
+		parts := strings.Split(path, "/")
+		return ipath.New(gopath.Join(ipnsPathPrefix, parts[2])), nil
 	}
 
-	return "", errors.New("failed to get root CID path")
+	return ipath.New(""), errors.New("failed to get root CID path")
 }
 
 func (i *gatewayHandler) serve404(w http.ResponseWriter, r *http.Request, content404Path ipath.Path) error {
@@ -325,22 +332,24 @@ func hasOriginIsolation(r *http.Request) bool {
 	_, gw := r.Context().Value("gw-hostname").(string)
 	_, dnslink := r.Context().Value("dnslink-hostname").(string)
 
-	// If dnslink, only proceed if has ipns path after the domain, such that we can get the root CID
-	if dnslink {
-		return isIpnsPathWithIpfsPath(r.URL.Path)
-	}
-
-	if gw {
+	if gw || dnslink {
 		return true
 	}
 
 	return false
 }
 
-func isIpnsPathWithIpfsPath(path string) bool {
-	if strings.HasPrefix(path, ipnsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 4 {
-		parts := strings.Split(gopath.Clean(path), "/")
-		return parts[3] == ipnsPathPrefix
+func isIpfsPath(path string) bool {
+	if strings.HasPrefix(path, ipfsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 2 {
+		return true
+	}
+
+	return false
+}
+
+func isIpnsPath(path string) bool {
+	if strings.HasPrefix(path, ipnsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 2 {
+		return true
 	}
 
 	return false
