@@ -119,20 +119,43 @@ func (i *gatewayHandler) getRedirectsFile(r *http.Request) (ipath.Resolved, erro
 
 // Returns the root CID path for the given path
 func getRootPath(path string) (string, error) {
+	// Handle both ipfs and ipns paths
+	//   /ipfs/CID
+	//   /ipns/domain/ipfs/CID
 	if strings.HasPrefix(path, ipfsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 2 {
 		parts := strings.Split(path, "/")
 		return gopath.Join(ipfsPathPrefix, parts[2]), nil
+	} else if strings.HasPrefix(path, ipnsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 4 {
+		parts := strings.Split(gopath.Clean(path), "/")
+		// TODO(JJ): The path came in as /ipns/domain/ipfs/CID, but I'm returning /ipfs/CID.  Confirm this doesn't cause any issues.
+		return gopath.Join(ipfsPathPrefix, parts[4]), nil
 	} else {
+		fmt.Printf("bad path=%v\n", path)
 		return "", errors.New("failed to get root CID path")
 	}
 }
 
+// TODO(JJ): Confirm approach
 func hasOriginIsolation(r *http.Request) bool {
 	_, gw := r.Context().Value("gw-hostname").(string)
 	_, dnslink := r.Context().Value("dnslink-hostname").(string)
 
-	if gw || dnslink {
+	// If dnslink, only proceed if has ipns path after the domain, such that we can get the root CID
+	if dnslink {
+		return isIpnsPathWithIpfsPath(r.URL.Path)
+	}
+
+	if gw {
 		return true
+	}
+
+	return false
+}
+
+func isIpnsPathWithIpfsPath(path string) bool {
+	if strings.HasPrefix(path, ipnsPathPrefix) && strings.Count(gopath.Clean(path), "/") >= 4 {
+		parts := strings.Split(gopath.Clean(path), "/")
+		return parts[3] == ipnsPathPrefix
 	} else {
 		return false
 	}
