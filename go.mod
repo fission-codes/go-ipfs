@@ -85,9 +85,9 @@ require (
 	github.com/libp2p/go-libp2p-resource-manager v0.1.5
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
 	github.com/libp2p/go-libp2p-swarm v0.10.2
-	github.com/libp2p/go-libp2p-testing v0.8.0
+	github.com/libp2p/go-libp2p-testing v0.9.2
 	github.com/libp2p/go-libp2p-tls v0.3.1
-	github.com/libp2p/go-libp2p-yamux v0.8.2
+	github.com/libp2p/go-libp2p-yamux v0.9.1
 	github.com/libp2p/go-socket-activation v0.1.0
 	github.com/libp2p/go-tcp-transport v0.5.1
 	github.com/libp2p/go-ws-transport v0.6.0
@@ -195,7 +195,7 @@ require (
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/libp2p/go-reuseport-transport v0.1.0 // indirect
 	github.com/libp2p/go-stream-muxer-multistream v0.4.0 // indirect
-	github.com/libp2p/go-yamux/v3 v3.0.2 // indirect
+	github.com/libp2p/go-yamux/v3 v3.1.1 // indirect
 	github.com/libp2p/zeroconf/v2 v2.1.1 // indirect
 	github.com/lucas-clemente/quic-go v0.25.0 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.4 // indirect
