@@ -86,7 +86,7 @@ require (
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
 	github.com/libp2p/go-libp2p-swarm v0.10.2
 	github.com/libp2p/go-libp2p-testing v0.8.0
-	github.com/libp2p/go-libp2p-tls v0.3.1
+	github.com/libp2p/go-libp2p-tls v0.4.1
 	github.com/libp2p/go-libp2p-yamux v0.8.2
 	github.com/libp2p/go-socket-activation v0.1.0
 	github.com/libp2p/go-tcp-transport v0.5.1
