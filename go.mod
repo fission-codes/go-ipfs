@@ -102,7 +102,7 @@ require (
 	go.opentelemetry.io/otel/exporters/zipkin v1.7.0
 	go.opentelemetry.io/otel/sdk v1.7.0
 	go.opentelemetry.io/otel/trace v1.7.0
-	go.uber.org/dig v1.15.0
+	go.uber.org/dig v1.16.1
 	go.uber.org/fx v1.18.2
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.3.0
