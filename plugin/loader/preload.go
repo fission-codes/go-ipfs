@@ -1,6 +1,7 @@
 package loader
 
 import (
+	plugincarmirror "github.com/fission-codes/kubo-car-mirror/plugin"
 	pluginbadgerds "github.com/ipfs/kubo/plugin/plugins/badgerds"
 	pluginiplddagjose "github.com/ipfs/kubo/plugin/plugins/dagjose"
 	pluginflatfs "github.com/ipfs/kubo/plugin/plugins/flatfs"
@@ -22,4 +23,5 @@ func init() {
 	Preload(pluginlevelds.Plugins...)
 	Preload(pluginpeerlog.Plugins...)
 	Preload(pluginfxtest.Plugins...)
+	Preload(plugincarmirror.Plugins...)
 }

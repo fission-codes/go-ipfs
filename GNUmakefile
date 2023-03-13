@@ -6,3 +6,5 @@ SHELL=PATH='$(PATH)' /bin/sh
 .SECONDEXPANSION:
 
 include Rules.mk
+
+include carmirror/Rules.mk
