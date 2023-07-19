@@ -4,3 +4,6 @@ all:
 
 .DEFAULT:
 	@gmake $@
+
+build-carmirror:
+	@gmake setup-kubo-build
