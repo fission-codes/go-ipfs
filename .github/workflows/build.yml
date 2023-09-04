@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: protocol/cache-go-action@v1
         with:
           name: ${{ github.job }}
@@ -110,7 +110,7 @@ jobs:
           name: kubo
           path: cmd/ipfs
       - run: chmod +x cmd/ipfs/ipfs
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: ipfs/go-ipfs-api
           path: go-ipfs-api
@@ -151,7 +151,7 @@ jobs:
           name: kubo
           path: cmd/ipfs
       - run: chmod +x cmd/ipfs/ipfs
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: ipfs/ipfs-webui
           path: ipfs-webui

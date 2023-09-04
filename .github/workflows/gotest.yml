@@ -34,7 +34,7 @@ jobs:
         with:
           go-version: 1.19.x
       - name: Check out Kubo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Restore Go cache
         uses: protocol/cache-go-action@v1
         with:

@@ -33,7 +33,7 @@ jobs:
         with:
           go-version: 1.19.x
       - name: Checkout kubo-gateway
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: kubo-gateway
       - name: Build kubo-gateway
